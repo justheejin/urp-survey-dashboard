@@ -30,29 +30,14 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,B
 .box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 24px}
 h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em;text-wrap:balance}
 p{margin:0 0 20px;color:var(--text-2);font-size:13px}
-label{display:block;font-size:12px;color:var(--text-2);margin-bottom:6px}
-input[type=password]{width:100%;height:40px;border:1px solid var(--border);border-radius:8px;padding:0 12px;font:inherit;background:var(--bg);color:var(--text)}
-input[type=password]:focus-visible,button:focus-visible,input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.row{display:flex;align-items:center;gap:6px;margin:12px 0 18px;font-size:13px;color:var(--text-2)}
-.row label{margin:0;font-size:13px}
-button{width:100%;height:40px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
-button:disabled{opacity:.6;cursor:progress}
-.err{color:var(--danger);font-size:13px;margin:10px 0 0;min-height:1.2em}
 .note{margin:18px 0 0;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
 <main class="box">
   <h1>URP 설문 분석 대시보드</h1>
-  <p>팀 비밀번호를 입력하면 대시보드가 열려요.</p>
-  <form id="f" autocomplete="off">
-    <label for="pw">비밀번호</label>
-    <input id="pw" type="password" required autofocus>
-    <div class="row"><input id="remember" type="checkbox" checked><label for="remember">이 브라우저에서 기억하기</label></div>
-    <button id="go" type="submit">열기</button>
-    <div class="err" id="err" role="alert"></div>
-  </form>
-  <div class="note">설문 응답 데이터는 암호화되어 있어서, 비밀번호 없이는 이 주소로 내용을 볼 수 없어요.</div>
+  <p id="msg">여는 중…</p>
+  <div class="note">팀에서 공유한 전용 링크로 열어야 내용을 볼 수 있어요. 링크를 받지 못했다면 팀에 요청해 주세요.</div>
 </main>
 <script>
 const P = __PAYLOAD__;
@@ -69,28 +54,21 @@ async function unlock(pw){
   return new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-CBC', iv}, ek, ct));
 }
 function show(html){ document.open(); document.write(html); document.close(); }
-const f = document.getElementById('f'), pwEl = document.getElementById('pw'), btn = document.getElementById('go'), err = document.getElementById('err');
-f.addEventListener('submit', async e => {
-  e.preventDefault();
-  err.textContent = ''; btn.disabled = true; btn.textContent = '여는 중…';
-  try {
-    const html = await unlock(pwEl.value);
-    if (html == null){ err.textContent = '비밀번호가 맞지 않아요. 다시 확인해 주세요.'; return; }
-    try { if (document.getElementById('remember').checked) localStorage.setItem(KEY, pwEl.value); else localStorage.removeItem(KEY); } catch (x) {}
-    show(html);
-  } catch (x) {
-    err.textContent = '이 브라우저에서는 열 수 없어요. 최신 크롬·사파리·엣지로 열어 주세요.';
-  } finally { btn.disabled = false; btn.textContent = '열기'; }
-});
+const msg = document.getElementById('msg');
 (async () => {
+  let key = '';
+  try { key = decodeURIComponent(location.hash.slice(1)); } catch (x) {}
   let saved = null;
   try { saved = localStorage.getItem(KEY); } catch (x) {}
-  if (!saved) return;
-  try {
-    const html = await unlock(saved);
-    if (html != null) { show(html); return; }
-  } catch (x) {}
-  try { localStorage.removeItem(KEY); } catch (x) {}
+  for (const k of [key, saved]) {
+    if (!k) continue;
+    try {
+      const html = await unlock(k);
+      if (html != null) { try { localStorage.setItem(KEY, k); } catch (x) {} show(html); return; }
+    } catch (x) { msg.textContent = '이 브라우저에서는 열 수 없어요. 최신 크롬·사파리·엣지로 열어 주세요.'; return; }
+  }
+  if (saved) { try { localStorage.removeItem(KEY); } catch (x) {} }
+  msg.textContent = key ? '링크가 올바르지 않아요. 팀에서 받은 링크를 그대로 열어 주세요.' : '팀에서 받은 전용 링크로 열어 주세요.';
 })();
 </script>
 </body>
